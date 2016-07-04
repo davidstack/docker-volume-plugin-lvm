@@ -14,7 +14,10 @@
 
 3、测试   
 
-   3.1 创建卷并指定卷大小：docker volume create --name wangdk3 -d LVM -o size=1G＜/br＞
-   3.2 运行Container使用已经存在的卷：docker run -itd -v wangdk3:/mnt ubuntu:15.04 bash＜/br＞
-   3.3 创建Container 同时创建卷并挂载，docker create -it -v wangdk2:/mnt --volume-driver=LVM ubuntu:15.04 bash  卷大小使用默认值2G＜/br＞
+   3.1 创建卷并指定卷大小：docker volume create --name wangdk3 -d LVM -o size=1G   
+   
+   3.2 运行Container使用已经存在的卷：docker run -itd -v wangdk3:/mnt ubuntu:15.04 bash   
+   
+   3.3 创建Container 同时创建卷并挂载，docker create -it -v wangdk2:/mnt --volume-driver=LVM ubuntu:15.04 bash  卷大小使用默认值2G  
+   
     
