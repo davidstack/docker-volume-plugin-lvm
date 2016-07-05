@@ -19,5 +19,7 @@
    3.2 运行Container使用已经存在的卷：docker run -itd -v wangdk3:/mnt ubuntu:15.04 bash   
    
    3.3 创建Container 同时创建卷并挂载，docker create -it -v wangdk2:/mnt --volume-driver=LVM ubuntu:15.04 bash  卷大小使用默认值2G  
+  PS:
+   目前不支持在创建Container的时候指定卷大小，使用默认值 2Gb
    
     
