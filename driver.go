@@ -93,7 +93,12 @@ func (driver *LvmPersistDriver) Create(req volume.Request) volume.Response {
 	/* create lv from vg,mount lv to mountpoint and write to /etc/fstab
 	 */
 	//1. create lv:lvcreate -L $lvsize -n $lvname $vgname -y
-	vgName := driver.VgName
+	vgName, vgOk := req.Options["vg"]
+	if !vgOk || (vgOk && vgName == "") {
+		fmt.Sprintf("The no vg info in req use default vg")
+		vgName = driver.VgName
+	}
+
 	cmdArgs := []string{"-n", req.Name}
 	cmdArgs = append(cmdArgs, "-L", volumeSize)
 	cmdArgs = append(cmdArgs, vgName)
@@ -296,7 +301,7 @@ func initialCache() LvmPersistDriver {
 	driver.VgName, err1 = cfg.GetValue(goconfig.DEFAULT_SECTION, "VGNAME")
 	if err1 != nil {
 		fmt.Println("load config file,get vgname failed...Terminated!!!", err1)
-		panic("config file error")
+		driver.VgName = ""
 	}
 	return driver
 }
