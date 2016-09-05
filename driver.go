@@ -31,8 +31,9 @@ type LvmPersistDriver struct {
 
 func NewLvmPersistDriver() *LvmPersistDriver {
 	fmt.Println("Starting... ")
-	driver := initialCache()
 	os.Mkdir(PluginDataDir, 0700)
+	os.Mkdir(LvmVolumeDir, 0700)
+	driver := initialCache()
 
 	fmt.Printf("Found %s volumes on startup\n", strconv.Itoa(len(driver.Volumes)))
 	return &driver
@@ -205,8 +206,8 @@ func (driver *LvmPersistDriver) Mount(req volume.Request) volume.Response {
 	}
 	driver.Mounts[req.Name] = append(driver.Mounts[req.Name], mountId)
 	*/
-	if driver.MountCounts[req.Name] == 0 {
-		//create mount point
+	val, ok := driver.MountCounts[req.Name]
+	if !ok || val == 0 {
 		os.Mkdir(mountPoint, 0644)
 		cmdArgs := []string{devicename, mountPoint}
 		fmt.Println(cmdArgs)
@@ -215,7 +216,20 @@ func (driver *LvmPersistDriver) Mount(req volume.Request) volume.Response {
 			fmt.Print("mount lv failed", err)
 			return volume.Response{Err: fmt.Sprintf("volum mount failed")}
 		}
+		fmt.Println(req.Name)
+		driver.MountCounts[req.Name] = 0
 	}
+	//	if driver.MountCounts[req.Name] == 0|| {
+	//		//create mount point
+	//		os.Mkdir(mountPoint, 0644)
+	//		cmdArgs := []string{devicename, mountPoint}
+	//		fmt.Println(cmdArgs)
+	//		cmd := exec.Command("mount", cmdArgs...)
+	//		if _, err := cmd.CombinedOutput(); err != nil {
+	//			fmt.Print("mount lv failed", err)
+	//			return volume.Response{Err: fmt.Sprintf("volum mount failed")}
+	//		}
+	//	}
 	driver.MountCounts[req.Name] = driver.MountCounts[req.Name] + 1
 	driver.UpdateCacheFile()
 	return volume.Response{Mountpoint: mountPoint}
@@ -288,9 +302,14 @@ func initialCache() LvmPersistDriver {
 		json.Unmarshal(bytes, &data)
 		driver.Volumes = data.Volumes
 		driver.Mounts = data.Mounts
-	} else {
+	}
+	if driver.Mounts == nil {
 		driver.Mounts = make(map[string][]string)
+	}
+	if driver.Volumes == nil {
 		driver.Volumes = make(map[string]string)
+	}
+	if driver.MountCounts == nil {
 		driver.MountCounts = make(map[string]int64)
 	}
 	cfg, err1 := goconfig.LoadConfigFile(LvmConfigFile)
