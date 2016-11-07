@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/Unknwon/goconfig"
+	_ "github.com/Unknwon/goconfig"
 	"github.com/docker/go-plugins-helpers/volume"
 )
 
@@ -312,16 +312,17 @@ func initialCache() LvmPersistDriver {
 	if driver.MountCounts == nil {
 		driver.MountCounts = make(map[string]int64)
 	}
-	cfg, err1 := goconfig.LoadConfigFile(LvmConfigFile)
-	if err1 != nil {
-		fmt.Println("load config file failed...Terminated!!!", err1)
-		panic("config file error")
-	}
-	driver.VgName, err1 = cfg.GetValue(goconfig.DEFAULT_SECTION, "VGNAME")
+	//	cfg, err1 := goconfig.LoadConfigFile(LvmConfigFile)
+	//	if err1 != nil {
+	//		fmt.Println("load config file failed...Terminated!!!", err1)
+	//		panic("config file error")
+	//	}
+	driver.VgName = "VG0"
+	/*, err1 = cfg.GetValue(goconfig.DEFAULT_SECTION, "VGNAME")
 	if err1 != nil {
 		fmt.Println("load config file,get vgname failed...Terminated!!!", err1)
 		driver.VgName = ""
-	}
+	}*/
 	return driver
 }
 
