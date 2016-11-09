@@ -130,8 +130,10 @@ func (driver *LvmPersistDriver) Create(req volume.Request) volume.Response {
 	fmt.Println("disk name is %s", lvdiskname)
 	driver.Volumes[req.Name] = lvdiskname
 	driver.Mounts[req.Name] = nil
+	mountPoint := LvmVolumeDir + req.Name
 	driver.UpdateCacheFile()
-	return volume.Response{}
+	fmt.Println("mountPoint is %s", mountPoint)
+	return volume.Response{Mountpoint: mountPoint}
 }
 
 func (driver *LvmPersistDriver) Remove(req volume.Request) volume.Response {
