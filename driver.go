@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
 
 	_ "github.com/Unknwon/goconfig"
@@ -21,12 +22,12 @@ const (
 )
 
 type LvmPersistDriver struct {
-	Volumes     map[string]string //key:volume name,value:volume device name
-	Mutex       *sync.Mutex
-	Name        string
-	Mounts      map[string][]string // key:volume name, value: mountpoint ids
-	VgName      string
-	MountCounts map[string]int64
+	Volumes map[string]string //key:volume name,value:volume device name
+	Mutex   *sync.Mutex
+	Name    string
+	Mounts  map[string]string // key:volume name, value: mountpoint ids
+	VgName  string
+	//MountCounts map[string]int64
 }
 
 func NewLvmPersistDriver() *LvmPersistDriver {
@@ -86,7 +87,6 @@ func (driver *LvmPersistDriver) Create(req volume.Request) volume.Response {
 		fmt.Sprintf("The volume %s size is zero,use default 2G", req.Name)
 		volumeSize = "2G"
 	}
-	fmt.Print("volume size is " + volumeSize)
 	if driver.exists(req.Name) {
 		return volume.Response{Err: fmt.Sprintf("The volume %s already exists", req.Name)}
 	}
@@ -117,22 +117,42 @@ func (driver *LvmPersistDriver) Create(req volume.Request) volume.Response {
 	cmd = exec.Command("mkfs.xfs", lvdiskname)
 	_, err = cmd.CombinedOutput()
 	if err != nil {
-		fmt.Print("format lv failed", err)
+		fmt.Println("format lv failed", err)
 		return volume.Response{Err: fmt.Sprintf("format volume %s failed", req.Name)}
 	}
+	//3.persist mount lv to mountPoint
+	mountPoint := LvmVolumeDir + req.Name
+
+	os.Mkdir(mountPoint, 0644)
+	cmdArgs = []string{lvdiskname, mountPoint}
+	fmt.Println(cmdArgs)
+	cmd = exec.Command("mount", cmdArgs...)
+	if _, err = cmd.CombinedOutput(); err != nil {
+		fmt.Println("mount lv failed", err)
+		return volume.Response{Err: fmt.Sprintf("volum mount failed")}
+	} else {
+		//update /etc/fstab
+		cmdArgs = []string{"/etc/fstab", "/etc/fstab.back"}
+		cmd = exec.Command("cp", cmdArgs...)
+		if _, err1 := cmd.CombinedOutput(); err1 != nil {
+			fmt.Println("back fstab failed", err1)
+		}
+		content := lvdiskname + " " + mountPoint + " xfs defaults 0 1"
+		updateFstab(content, false)
+	}
+
 	//3 persist to data dir
 	cmd = exec.Command("touch", PluginDataDir+req.Name)
 	_, err = cmd.CombinedOutput()
 	if err != nil {
-		fmt.Print("persist voulme info failed", err)
+		fmt.Println("persist voulme info failed", err)
 		return volume.Response{Err: fmt.Sprintf("internal error")}
 	}
+
 	fmt.Println("disk name is %s", lvdiskname)
 	driver.Volumes[req.Name] = lvdiskname
-	driver.Mounts[req.Name] = nil
-	mountPoint := LvmVolumeDir + req.Name
+	driver.Mounts[req.Name] = mountPoint
 	driver.UpdateCacheFile()
-	fmt.Println("mountPoint is %s", mountPoint)
 	return volume.Response{Mountpoint: mountPoint}
 }
 
@@ -148,21 +168,29 @@ func (driver *LvmPersistDriver) Remove(req volume.Request) volume.Response {
 	}()
 	deviceName := driver.Volumes[req.Name]
 	//0 check any mount info
-	if driver.Mounts[req.Name] != nil && len(driver.Mounts[req.Name]) != 0 {
-		return volume.Response{Err: fmt.Sprintf("this volume has mount point ,can not remove")}
+	//	if _, ok := driver.Mounts[req.Name]; ok {
+	//		return volume.Response{Err: fmt.Sprintf("this volume has mount point ,can not remove")}
+	//	}
+
+	//umount
+	cmd := exec.Command("umount", deviceName)
+	if _, err := cmd.CombinedOutput(); err != nil {
+		fmt.Println("umount lv failed", err)
+		return volume.Response{Err: fmt.Sprintf("remove volume %s failed", req.Name)}
 	}
 
-	//1.remove from cache
-	delete(driver.Volumes, req.Name)
-	driver.UpdateCacheFile()
+	//update fstab
+	content := deviceName + " " + driver.Mounts[req.Name] + " xfs defaults 0 1"
+	updateFstab(content, true)
 	//2. remove from vg  $lvdiskname -f
 	cmdArgs := []string{deviceName, "-f"}
-	cmd := exec.Command("lvremove", cmdArgs...)
+	cmd = exec.Command("lvremove", cmdArgs...)
 	if _, err := cmd.CombinedOutput(); err != nil {
-		fmt.Print("remove voulme info failed", err)
+		fmt.Println("remove voulme info failed", err)
 		return volume.Response{Err: "remove volume failed"}
 	}
-
+	//remove locl dir
+	os.RemoveAll(driver.Mounts[req.Name])
 	//3. remove from persist data
 	cmd = exec.Command("rm", PluginDataDir+req.Name)
 	_, err := cmd.CombinedOutput()
@@ -170,6 +198,11 @@ func (driver *LvmPersistDriver) Remove(req volume.Request) volume.Response {
 		fmt.Print("remove voulme info failed", err)
 		return volume.Response{Err: "remove volume failed"}
 	}
+	//1.remove from cache
+	delete(driver.Volumes, req.Name)
+	delete(driver.Mounts, req.Name)
+
+	driver.UpdateCacheFile()
 
 	return volume.Response{}
 }
@@ -184,55 +217,7 @@ func (driver *LvmPersistDriver) Mount(req volume.Request) volume.Response {
 	}
 	fmt.Println(devicename)
 	mountPoint := LvmVolumeDir + req.Name
-	/* # mountID can not use
-	mountId := req.MountID
-	fmt.Println("mount point id is %s", mountId)
-	for index := range driver.Mounts[req.Name] {
-		if driver.Mounts[req.Name][index] == mountId {
-			fmt.Println("volume has been mounted")
-			return volume.Response{Err: fmt.Sprintf("volume has been mounted")}
-		}
-	}
 
-	//1. mount lv
-	if driver.Mounts[req.Name] == nil {
-		//create mount point
-		os.Mkdir(mountPoint, 0644)
-		cmdArgs := []string{devicename, mountPoint}
-		fmt.Println(cmdArgs)
-		cmd := exec.Command("mount", cmdArgs...)
-		if _, err := cmd.CombinedOutput(); err != nil {
-			fmt.Print("mount lv failed", err)
-			return volume.Response{Err: fmt.Sprintf("volum mount failed")}
-		}
-	}
-	driver.Mounts[req.Name] = append(driver.Mounts[req.Name], mountId)
-	*/
-	val, ok := driver.MountCounts[req.Name]
-	if !ok || val == 0 {
-		os.Mkdir(mountPoint, 0644)
-		cmdArgs := []string{devicename, mountPoint}
-		fmt.Println(cmdArgs)
-		cmd := exec.Command("mount", cmdArgs...)
-		if _, err := cmd.CombinedOutput(); err != nil {
-			fmt.Print("mount lv failed", err)
-			return volume.Response{Err: fmt.Sprintf("volum mount failed")}
-		}
-		fmt.Println(req.Name)
-		driver.MountCounts[req.Name] = 0
-	}
-	//	if driver.MountCounts[req.Name] == 0|| {
-	//		//create mount point
-	//		os.Mkdir(mountPoint, 0644)
-	//		cmdArgs := []string{devicename, mountPoint}
-	//		fmt.Println(cmdArgs)
-	//		cmd := exec.Command("mount", cmdArgs...)
-	//		if _, err := cmd.CombinedOutput(); err != nil {
-	//			fmt.Print("mount lv failed", err)
-	//			return volume.Response{Err: fmt.Sprintf("volum mount failed")}
-	//		}
-	//	}
-	driver.MountCounts[req.Name] = driver.MountCounts[req.Name] + 1
 	driver.UpdateCacheFile()
 	return volume.Response{Mountpoint: mountPoint}
 }
@@ -250,38 +235,11 @@ func (driver *LvmPersistDriver) Unmount(req volume.Request) volume.Response {
 	driver.Mutex.Lock()
 	defer driver.Mutex.Unlock()
 	fmt.Println("Unmount Called... ")
-	devicename, ok := driver.Volumes[req.Name]
+	_, ok := driver.Volumes[req.Name]
 	if !ok {
 		return volume.Response{Err: fmt.Sprintf("The volume %s not exist", req.Name)}
 	}
-	/*# mountId can not use
-	mountId := req.MountID
-	mountIDs := driver.Mounts[req.Name]
-	for index := range mountIDs {
-		if mountIDs[index] == mountId {
-			if index < len(mountIDs)-1 {
-				mountIDs = append(mountIDs[:index], mountIDs[index+1:]...)
-			} else {
-				mountIDs = mountIDs[:index]
-			}
-			break
-		}
-	}
-	if len(mountIDs) == 0 {
-		cmd := exec.Command("umount", devicename)
-		if _, err := cmd.CombinedOutput(); err != nil {
-			fmt.Print("umount lv failed", err)
-			return volume.Response{Err: fmt.Sprintf("umount volume %s failed", req.Name)}
-		}
-	}*/
-	driver.MountCounts[req.Name] = driver.MountCounts[req.Name] - 1
-	if driver.MountCounts[req.Name] == 0 {
-		cmd := exec.Command("umount", devicename)
-		if _, err := cmd.CombinedOutput(); err != nil {
-			fmt.Print("umount lv failed", err)
-			return volume.Response{Err: fmt.Sprintf("umount volume %s failed", req.Name)}
-		}
-	}
+
 	driver.UpdateCacheFile()
 	return volume.Response{}
 }
@@ -306,25 +264,14 @@ func initialCache() LvmPersistDriver {
 		driver.Mounts = data.Mounts
 	}
 	if driver.Mounts == nil {
-		driver.Mounts = make(map[string][]string)
+		driver.Mounts = make(map[string]string)
 	}
 	if driver.Volumes == nil {
 		driver.Volumes = make(map[string]string)
 	}
-	if driver.MountCounts == nil {
-		driver.MountCounts = make(map[string]int64)
-	}
-	//	cfg, err1 := goconfig.LoadConfigFile(LvmConfigFile)
-	//	if err1 != nil {
-	//		fmt.Println("load config file failed...Terminated!!!", err1)
-	//		panic("config file error")
-	//	}
+
 	driver.VgName = "VG0"
-	/*, err1 = cfg.GetValue(goconfig.DEFAULT_SECTION, "VGNAME")
-	if err1 != nil {
-		fmt.Println("load config file,get vgname failed...Terminated!!!", err1)
-		driver.VgName = ""
-	}*/
+
 	return driver
 }
 
@@ -334,7 +281,7 @@ func (driver *LvmPersistDriver) UpdateCacheFile() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println("cache data is %s", string(data))
+	//	fmt.Println("cache data is %s", string(data))
 	err = ioutil.WriteFile(DriverCacheFile, data, 0644)
 	if err != nil {
 		fmt.Println("update cache filed failed", err)
@@ -348,4 +295,52 @@ func (driver *LvmPersistDriver) volume(name string) *volume.Volume {
 
 func (driver *LvmPersistDriver) exists(name string) bool {
 	return driver.Volumes[name] != ""
+}
+
+////append or delete lv info in /etc/fstab
+func updateFstab(content string, isDelete bool) {
+	if isDelete {
+		removeLineFrom(content)
+		return
+	}
+	f, err := os.OpenFile("/etc/fstab", os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		fmt.Println("open fstab failed", err)
+		return
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(content + "\n")
+	if err != nil {
+		fmt.Println("update fstab failed", err)
+	}
+}
+
+func removeLineFrom(line string) {
+	input, err := ioutil.ReadFile("/etc/fstab")
+	fmt.Println("delte line is ", line)
+	if err != nil {
+		fmt.Println("read fstab failed", err)
+		return
+	}
+
+	lines := strings.Split(string(input), "\n")
+	lineIndex := 0
+	found := false
+	for i, value := range lines {
+		if strings.Contains(value, line) {
+			fmt.Println("found")
+			lineIndex = i
+			found = true
+			break
+		}
+	}
+	if found {
+		lines = append(lines[:lineIndex], lines[lineIndex+1:]...)
+	}
+	output := strings.Join(lines, "\n")
+	err = ioutil.WriteFile("/etc/fstab", []byte(output), 0644)
+	if err != nil {
+		fmt.Println("read fstab failed", err)
+	}
 }
