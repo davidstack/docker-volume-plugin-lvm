@@ -1,0 +1,73 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "5LSIi2TfMDCCbQIumQi/+tweI5o=",
+			"path": "github.com/Microsoft/go-winio",
+			"revision": "8f9387ea7efabb228a981b9c381142be7667967f",
+			"revisionTime": "2016-03-16T00:33:20Z"
+		},
+		{
+			"checksumSHA1": "5F54TjTK9OhOk8pEOqp14yB1Q+o=",
+			"path": "github.com/Sirupsen/logrus",
+			"revision": "418b41d23a1bf978c06faea5313ba194650ac088",
+			"revisionTime": "2015-09-08T20:46:18Z"
+		},
+		{
+			"checksumSHA1": "9Db3Cx4Xt5zoHab2W6TEu1LphNU=",
+			"path": "github.com/coreos/go-systemd/activation",
+			"revision": "4484981625c1a6a2ecb40a390fcb6a9bcfee76e3",
+			"revisionTime": "2016-05-27T14:02:44Z"
+		},
+		{
+			"checksumSHA1": "uslisHQFxjW+mwWQB8UpJbqNpo8=",
+			"path": "github.com/coreos/go-systemd/util",
+			"revision": "4484981625c1a6a2ecb40a390fcb6a9bcfee76e3",
+			"revisionTime": "2016-05-27T14:02:44Z"
+		},
+		{
+			"checksumSHA1": "O8c/VKtW34XPJNNlyeb/im8vWSI=",
+			"path": "github.com/coreos/pkg/dlopen",
+			"revision": "fa29b1d70f0beaddd4c7021607cc3c3be8ce94b8",
+			"revisionTime": "2016-06-20T23:27:15Z"
+		},
+		{
+			"checksumSHA1": "qduzCUW9qrkJVh/5ec54Rzrq26g=",
+			"path": "github.com/docker/go-connections/sockets",
+			"revision": "f549a9393d05688dff0992ef3efd8bbe6c628aeb",
+			"revisionTime": "2016-03-04T22:48:11Z"
+		},
+		{
+			"checksumSHA1": "MtCBe+DWKRPr6/24paFEiJ1Ye/A=",
+			"path": "github.com/docker/go-plugins-helpers/sdk",
+			"revision": "691e0f370c970a77c735770cd0fb52d25d83bc39",
+			"revisionTime": "2016-08-02T05:41:55Z"
+		},
+		{
+			"checksumSHA1": "bq6ziEPNULcuC4aJsrvvTPDfE8Y=",
+			"path": "github.com/docker/go-plugins-helpers/volume",
+			"revision": "51dd1d5af15491a3899f72649e621ef37e641993",
+			"revisionTime": "2016-08-02T05:42:23Z"
+		},
+		{
+			"checksumSHA1": "BoXdUBWB8UnSlFlbnuTQaPqfCGk=",
+			"path": "github.com/op/go-logging",
+			"revision": "970db520ece77730c7e4724c61121037378659d9",
+			"revisionTime": "2016-03-15T20:05:05Z"
+		},
+		{
+			"checksumSHA1": "3AoPMXlmVq2+iWMpsdJZkcUKHB8=",
+			"path": "github.com/opencontainers/runc/libcontainer/user",
+			"revision": "142df3836b740af53dc6da59eed8dbc92f62917c",
+			"revisionTime": "2016-08-02T16:34:53Z"
+		},
+		{
+			"checksumSHA1": "LvdVRE0FqdR68SvVpRkHs1rxhcA=",
+			"path": "golang.org/x/net/proxy",
+			"revision": "7b16adc08e1113b210d62843127a17efaa8e49d2",
+			"revisionTime": "2016-08-01T07:18:39Z"
+		}
+	],
+	"rootPath": "gitserver/iop/docker-volume-plugin-lvm"
+}
