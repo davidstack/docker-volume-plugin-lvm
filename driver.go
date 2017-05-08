@@ -43,7 +43,7 @@ func NewLvmPersistDriver() *LvmPersistDriver {
 
 	logFile, err := os.OpenFile("/var/log/docker-volume-plugins.log", os.O_RDWR|os.O_APPEND|os.O_CREATE, 0666)
 	if err != nil {
-		fmt.Println(err)
+		log.Error(err)
 	}
 	backend2 := logging.NewLogBackend(logFile, "", 0)
 
@@ -140,13 +140,20 @@ func (driver *LvmPersistDriver) Create(req volume.Request) volume.Response {
 	}
 	//3.persist mount lv to mountPoint
 	mountPoint := LvmVolumeDir + req.Name
-	err = syscall.Mkdir(mountPoint, 0750)
+	cmdArgs = []string{"-p", mountPoint}
+	cmd = exec.Command("mkdir", cmdArgs...)
+	_, err = cmd.CombinedOutput()
 	if err != nil {
-		log.Error("mkdir mountpoint failed", err)
+		log.Error("mkdir local mountpoint failed", err)
+		return volume.Response{Err: "mkdir mountpoint failedss"}
+	}
+	err = syscall.Chmod(mountPoint, 0750)
+	if err != nil {
+		log.Error("chmod mountpoint failed", err)
 		return volume.Response{Err: "mkdir mountpoint failedss"}
 	}
 	cmdArgs = []string{lvdiskname, mountPoint}
-	fmt.Println(cmdArgs)
+	log.Info(cmdArgs)
 	cmd = exec.Command("mount", cmdArgs...)
 	if _, err = cmd.CombinedOutput(); err != nil {
 		log.Error("mount lv failed", err)
@@ -196,26 +203,28 @@ func (driver *LvmPersistDriver) Remove(req volume.Request) volume.Response {
 		return volume.Response{Err: "remove volume failed"}
 	}
 	//1 umount
-	err := syscall.Unmount(driver.Mounts[req.Name], 0)
-	if err != nil {
-		log.Error("unmount lv failed", err)
-		return volume.Response{Err: "unmount lv failed"}
+	cmdArgs := []string{"-l",driver.Mounts[req.Name]}
+	cmd := exec.Command("umount", cmdArgs...)
+	if _, err := cmd.CombinedOutput(); err != nil {
+		log.Error("umount lv failed", err)
+		//return volume.Response{Err: fmt.Sprintf("volum umount failed")}
 	}
+
 	//2 update fstab
 	content := deviceName + " " + driver.Mounts[req.Name] + " xfs defaults 0 1"
 	updateFstab(content, true)
 	//3. remove from vg  $lvdiskname -f
-	cmdArgs := []string{deviceName, "-f"}
-	cmd := exec.Command("lvremove", cmdArgs...)
-	if _, err := cmd.CombinedOutput(); err != nil {
+	cmdArgs = []string{deviceName, "-f"}
+	cmd = exec.Command("lvremove", cmdArgs...)
+	if _, err:= cmd.CombinedOutput(); err != nil {
 		log.Error("remove lv  failed", err)
-		return volume.Response{Err: "remove lv failed"}
+		//return volume.Response{Err: "remove lv failed"}
 	}
 	//remove local dir
-	err = os.RemoveAll(driver.Mounts[req.Name])
+	err := os.RemoveAll(driver.Mounts[req.Name])
 	if err != nil {
 		log.Error("remove voulme info failed", err)
-		return volume.Response{Err: "remove local dir failed"}
+		//return volume.Response{Err: "remove local dir failed"}
 	}
 	//1.remove from cache
 	delete(driver.Volumes, req.Name)
@@ -354,7 +363,7 @@ func removeLineFrom(line string) {
 	found := false
 	for i, value := range lines {
 		if strings.Contains(value, line) {
-			fmt.Println("found")
+
 			lineIndex = i
 			found = true
 			break
